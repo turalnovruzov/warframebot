@@ -3,13 +3,19 @@ from notifier import Notifier
 from dbcontext import DbContext
 from updater import Updater
 from feedreader import FeedReader
-from discord.ext.commands import Bot, Context
+from discord.ext.commands import Bot
+
+with open('info.txt', 'r') as file:
+    token = file.readline().strip('\n')
+    host = file.readline().strip('\n')
+    username = file.readline().strip('\n')
+    password = file.readline().strip('\n')
 
 loop = asyncio.get_event_loop()
 lock = asyncio.Lock()
-bot = Bot(command_prefix=('!'), description='A bot that sends messages to individual people and channels'
-                                                 ' about news.')
-db_context = DbContext(lock)
+bot = Bot(command_prefix='!', description='A bot that sends messages to individual people and channels'
+                                          ' about news.')
+db_context = DbContext(host, username, password)
 notifier = Notifier(bot)
 updater = Updater()
 feed_reader = FeedReader()
@@ -29,7 +35,7 @@ async def subscribe(ctx):
     user_ids = await db_context.read_user_ids()
     if ctx.message.author.id not in user_ids:
         await asyncio.wait([db_context.save_user_ids(ctx.message.author.id),
-                     bot.say('{}, You are subscribed to the feed now!'.format(ctx.message.author.mention))])
+                            bot.say('{}, You are subscribed to the feed now!'.format(ctx.message.author.mention))])
     else:
         await bot.say('{}, You are already subscribed, to unsubscribe type **!unsubscribe**.'
                       .format(ctx.message.author.mention))
@@ -45,11 +51,8 @@ async def subscribe_channel(ctx):
         else:
             await bot.say('{}, This channel is already subscribed, to unsubscribe type **!unsubscribe**.'
                           .format(ctx.message.author.mention))
+    else:
+        await bot.say('{}, You do not have permission to do this.')
 
 
-
-with open('token.txt', 'r') as file:
-    token = file.readline()
-    bot.run(token, loop=loop)
-
-
+bot.run(token, loop=loop)
