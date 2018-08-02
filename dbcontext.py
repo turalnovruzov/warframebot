@@ -1,14 +1,21 @@
+import asyncio
 import pickle
+import mysql.connector
 import os
 
 
 class DbContext:
-    def __init__(self, lock):
+    def __init__(self, host, username, password):
+        self.db = mysql.connector.connect(
+            host=host,
+            user=username,
+            passwd=password,
+            database='warframebot'
+        )
         self.folder = 'data/'
         self.feed = self.folder + 'feed.pkl'
-        self.user_ids = self.folder + 'user_ids.dat'
-        self.channel_ids = self.folder + 'channel_ids.dat'
-        self.lock = lock
+        self.lock_sql = asyncio.Lock()
+        self.lock_os = asyncio.Lock()
 
     async def save_feed(self, feed):
         """
@@ -21,42 +28,51 @@ class DbContext:
         None
         """
         try:
-            with open(self.feed, 'w') as file:
-                pickle.dump(feed, file)
-        except Exception as ex:
-            print(ex)
+            async with self.lock_os:
+                with open(self.feed, 'w') as file:
+                    pickle.dump(feed, file)
+        except FileNotFoundError:
+            if not os.path.isdir(self.folder):
+                os.mkdir(self.folder)
+            open(self.feed, 'w').close()
 
-    async def save_user_ids(self, *_ids):
+    async def save_user_ids(self, *ids):
         """
         Saves the Ids
 
-        :param _ids:
+        :param ids:
         Id of the users
 
         :return:
         None
         """
-        try:
-            with open(self.user_ids, 'a') as file:
-                file.writelines(_ids)
-        except Exception as ex:
-            print(ex)
+        async with self.lock_sql:
+            if len(ids) > 0:
+                _ids = []
+                for i in ids:
+                    _ids.append((i,))
+                cursor = self.db.cursor()
+                cursor.executemany('INSERT INTO user (discord_id) VALUES (%s)', _ids)
+                self.db.commit()
 
-    async def save_channel_ids(self, *_ids):
+    async def save_channel_ids(self, *ids):
         """
         Saves the Ids
 
-        :param _ids:
+        :param ids:
         Id of the channels
 
         :return:
         None
         """
-        try:
-            with open(self.channel_ids, 'a') as file:
-                file.writelines(_ids)
-        except Exception as ex:
-            print(ex)
+        async with self.lock_sql:
+            if len(ids) > 0:
+                _ids = []
+                for i in ids:
+                    _ids.append((i,))
+                cursor = self.db.cursor()
+                cursor.executemany('INSERT INTO channel (discord_id) VALUES (%s)', _ids)
+                self.db.commit()
 
     async def read_feed(self):
         """
@@ -66,16 +82,13 @@ class DbContext:
         The feed as python object objects
         """
         try:
-            with open(self.feed, 'r') as file:
-                return pickle.load(file)
+            async with self.lock_os:
+                with open(self.feed, 'r') as file:
+                    return pickle.load(file)
         except FileNotFoundError:
             if not os.path.isdir(self.folder):
                 os.mkdir(self.folder)
             open(self.feed, 'w').close()
-        except Exception as ex:
-            print(ex)
-
-        return []
 
     async def read_user_ids(self):
         """
@@ -84,17 +97,10 @@ class DbContext:
         :return:
         The Ids as a list of strings
         """
-        try:
-            with open(self.user_ids, 'r') as file:
-                return [line.rstrip('\n') for line in file]
-        except FileNotFoundError:
-            if not os.path.isdir(self.folder):
-                os.mkdir(self.folder)
-            open(self.user_ids, 'w').close()
-        except Exception as ex:
-            print(ex)
-
-        return []
+        async with self.lock_sql:
+            cursor = self.db.cursor()
+            cursor.execute('SELECT discord_id FROM user')
+            return cursor.fetchall()[0][0]
 
     async def read_channel_ids(self):
         """
@@ -103,14 +109,7 @@ class DbContext:
         :return:
         The Ids as a list of strings
         """
-        try:
-            with open(self.channel_ids, 'r') as file:
-                return [line.rstrip('\n') for line in file]
-        except FileNotFoundError:
-            if not os.path.isdir(self.folder):
-                os.mkdir(self.folder)
-            open(self.channel_ids, 'w').close()
-        except Exception as ex:
-            print(ex)
-
-        return []
+        async with self.lock_sql:
+            cursor = self.db.cursor()
+            cursor.execute('SELECT discord_id FROM channel')
+            return cursor.fetchall()[0][0]
