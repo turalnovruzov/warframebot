@@ -113,3 +113,39 @@ class DbContext:
             cursor = self.db.cursor()
             cursor.execute('SELECT discord_id FROM channel')
             return cursor.fetchall()[0][0]
+
+    async def user_exists(self, id):
+        """
+        Checks if the given user id is saved in the database
+
+        :param id:
+        Id to be checked
+
+        :return:
+        True if exists, False otherwise
+        """
+        async with self.lock_sql:
+            cursor = self.db.cursor()
+            cursor.execute('SELECT discord_id FROM user WHERE discord_id=%s', (id,))
+            if len(cursor.fetchall()) > 0:
+                return True
+            else:
+                return False
+
+    async def channel_exists(self, id):
+        """
+        Checks if the given channel id is saved in the database
+
+        :param id:
+        Id to be checked
+
+        :return:
+        True if exists, False otherwise
+        """
+        async with self.lock_sql:
+            cursor = self.db.cursor()
+            cursor.execute('SELECT discord_id FROM channel WHERE discord_id=%s', (id,))
+            if len(cursor.fetchall()) > 0:
+                return True
+            else:
+                return False
