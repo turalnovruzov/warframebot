@@ -12,7 +12,7 @@ class DbContext:
             passwd=password,
             database='warframebot'
         )
-        self.folder = 'data/'
+        self.folder = './data/'
         self.feed = self.folder + 'feed.pkl'
         self.lock_sql = asyncio.Lock()
         self.lock_os = asyncio.Lock()
@@ -29,7 +29,7 @@ class DbContext:
         """
         try:
             async with self.lock_os:
-                with open(self.feed, 'w') as file:
+                with open(self.feed, 'wb') as file:
                     pickle.dump(feed, file)
         except FileNotFoundError:
             if not os.path.isdir(self.folder):
@@ -83,12 +83,17 @@ class DbContext:
         """
         try:
             async with self.lock_os:
-                with open(self.feed, 'r') as file:
-                    return pickle.load(file)
+                with open(self.feed, 'rb') as file:
+                    s = pickle.load(file)
+                    return s
         except FileNotFoundError:
             if not os.path.isdir(self.folder):
                 os.mkdir(self.folder)
             open(self.feed, 'w').close()
+        except EOFError:
+            pass
+        finally:
+            return None
 
     async def read_user_ids(self):
         """
@@ -100,7 +105,7 @@ class DbContext:
         async with self.lock_sql:
             cursor = self.db.cursor()
             cursor.execute('SELECT discord_id FROM user')
-            return cursor.fetchall()[0][0]
+            return cursor.fetchall()
 
     async def read_channel_ids(self):
         """
@@ -112,13 +117,13 @@ class DbContext:
         async with self.lock_sql:
             cursor = self.db.cursor()
             cursor.execute('SELECT discord_id FROM channel')
-            return cursor.fetchall()[0][0]
+            return cursor.fetchall()
 
-    async def user_exists(self, id):
+    async def user_exists(self, _id):
         """
         Checks if the given user id is saved in the database
 
-        :param id:
+        :param _id:
         Id to be checked
 
         :return:
@@ -126,17 +131,17 @@ class DbContext:
         """
         async with self.lock_sql:
             cursor = self.db.cursor()
-            cursor.execute('SELECT discord_id FROM user WHERE discord_id=%s', (id,))
+            cursor.execute('SELECT discord_id FROM user WHERE discord_id=%s', (_id,))
             if len(cursor.fetchall()) > 0:
                 return True
             else:
                 return False
 
-    async def channel_exists(self, id):
+    async def channel_exists(self, _id):
         """
         Checks if the given channel id is saved in the database
 
-        :param id:
+        :param _id:
         Id to be checked
 
         :return:
@@ -144,8 +149,44 @@ class DbContext:
         """
         async with self.lock_sql:
             cursor = self.db.cursor()
-            cursor.execute('SELECT discord_id FROM channel WHERE discord_id=%s', (id,))
+            cursor.execute('SELECT discord_id FROM channel WHERE discord_id=%s', (_id,))
             if len(cursor.fetchall()) > 0:
                 return True
             else:
                 return False
+
+    async def delete_user_id(self, *ids):
+        """
+        Deletes the given user id from database
+
+        :param id:
+        User id to be deleted
+
+        :return:
+        None
+        """
+        if len(ids) > 0:
+            _ids = []
+            for i in ids:
+                _ids.append((i,))
+            cursor = self.db.cursor()
+            cursor.executemany('DELETE FROM user WHERE discord_id=%s', _ids)
+            self.db.commit()
+
+    async def delete_channel_ids(self, *ids):
+        """
+        Deletes the given user id from database
+
+        :param id:
+        User id to be deleted
+
+        :return:
+        None
+        """
+        if len(ids) > 0:
+            _ids = []
+            for i in ids:
+                _ids.append((i,))
+            cursor = self.db.cursor()
+            cursor.executemany('DELETE FROM channel WHERE discord_id=%s', _ids)
+            self.db.commit()
