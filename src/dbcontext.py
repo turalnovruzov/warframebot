@@ -2,6 +2,7 @@ import asyncio
 import pickle
 import mysql.connector
 import os
+import itertools
 
 
 class DbContext:
@@ -32,9 +33,9 @@ class DbContext:
                 with open(self.feed, 'wb') as file:
                     pickle.dump(feed, file)
         except FileNotFoundError:
-            if not os.path.isdir(self.folder):
-                os.mkdir(self.folder)
-            open(self.feed, 'w').close()
+            os.mkdir(self.folder)
+            with open(self.feed, 'wb') as file:
+                pickle.dump(feed, file)
 
     async def save_user_ids(self, *ids):
         """
@@ -105,7 +106,7 @@ class DbContext:
         async with self.lock_sql:
             cursor = self.db.cursor()
             cursor.execute('SELECT discord_id FROM user')
-            return cursor.fetchall()
+            return itertools.chain.from_iterable(cursor.fetchall())
 
     async def read_channel_ids(self):
         """
@@ -117,7 +118,7 @@ class DbContext:
         async with self.lock_sql:
             cursor = self.db.cursor()
             cursor.execute('SELECT discord_id FROM channel')
-            return cursor.fetchall()
+            return itertools.chain.from_iterable(cursor.fetchall())
 
     async def user_exists(self, _id):
         """
